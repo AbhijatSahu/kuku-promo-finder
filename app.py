@@ -57,6 +57,15 @@ st.markdown(
         font-weight: 600 !important;   /* optional – makes it bold */
         line-height: 1.4;               /* optional – a bit more vertical spacing */
     }
+    .scrollbox {
+        max-height: 150px;
+        overflow-y: auto;
+        border: 1px solid #444;
+        padding: 5px;
+        background: #181c24;
+        border-radius: 5px;
+        margin-top: 8px;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -366,6 +375,35 @@ def main() -> None:
         with tab3:
             st.subheader("⚡ Execute Promo Finder Pipeline")
             st.caption("Re‑run candidate generation, heuristic screening, and LLM evaluation with custom parameters.")
+            # ---- Upload screenplays ----
+
+            # ---- Upload & manage screenplays ----
+
+            uploaded_files = st.file_uploader(
+                "Upload screenplay .txt files (will be saved to `data/episodes/`)",
+                type=["txt"],
+                accept_multiple_files=True,
+                key="screenplay_uploader",
+            )
+
+            if uploaded_files:
+                # Initialise session state list
+                if "uploaded_files" not in st.session_state:
+                    st.session_state.uploaded_files = []
+                for uf in uploaded_files:
+                    # Save file data in session state (avoid duplicates)
+                    if not any(f["name"] == uf.name for f in st.session_state.uploaded_files):
+                        st.session_state.uploaded_files.append({"name": uf.name, "data": uf.getvalue()})
+                st.success(f"Added {len(uploaded_files)} file(s).")
+            # Inline, scrollable file list with delete buttons (max 3 visible rows)
+            
+
+            # Write all uploaded files to the data folder before running the pipeline
+            for f in st.session_state.get("uploaded_files", []):
+                save_path = Path("data/episodes") / f["name"]
+                with open(save_path, "wb") as out_f:
+                    out_f.write(f["data"])
+
             with st.form("pipeline_run_form"):
                 r_c1, r_c2 = st.columns(2)
                 with r_c1:
