@@ -134,15 +134,6 @@ All tests should pass before you push a new version.
 
 ---
 
-## Deployment (Streamlit Community Cloud)
-1. Push the repository to GitHub (you already have a clean history). 
-2. In **Streamlit Cloud**, click **New app**, connect the GitHub repo, and set **`app.py`** as the entry point.
-3. In the **Secrets** section of the Streamlit app, add `PROMO_API_KEY`, `PROMO_BASE_URL`, and `PROMO_MODEL`.
-4. Deploy – Streamlit will install dependencies from `requirements.txt` and expose a public URL.
-5. Update the **Live demo** badge below with the URL once the app is live.
-
----
-
 ## License
 This project is released under the **MIT License**. See the `LICENSE` file for details.
 
