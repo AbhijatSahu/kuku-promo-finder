@@ -1,0 +1,19 @@
+﻿# Byte‑compiled / __pycache__
+__pycache__/
+*.py[cod]
+
+# Virtual env / env files
+venv/
+.env/
+.env.*
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+
+# IDE / editor folders
+.vscode/
+.idea/
+
+# Streamlit / cache
+.st_cache/
+outputs/
