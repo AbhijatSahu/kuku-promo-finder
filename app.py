@@ -53,9 +53,9 @@ st.markdown(
     .st-expanderHeader,
     .streamlit-expanderHeader,
     details.st-expander > summary {
-        font-size: 1.8rem !important;   /* adjust as needed (1.2rem, 1.8rem, etc.) */
-        font-weight: 600 !important;   /* optional – makes it bold */
-        line-height: 1.4;               /* optional – a bit more vertical spacing */
+        font-size: 1.8rem !important;
+        font-weight: 600 !important;
+        line-height: 1.4;
     }
     .scrollbox {
         max-height: 150px;
@@ -100,7 +100,6 @@ def load_validation_data() -> Dict[str, Any]:
         return {}
 
 def filter_promos(raw_promos: List[Dict[str, Any]], selections: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Apply filtering based on user selections."""
     fmt = selections["format_choice"]
     dur_min, dur_max = selections["dur_range"]
     min_score = selections["min_score"]
@@ -136,10 +135,8 @@ def filter_promos(raw_promos: List[Dict[str, Any]], selections: Dict[str, Any]) 
     return out
 
 def render_filter_sidebar(raw_promos: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Render filter widgets and return selections. Used when filters appear on the right column."""
     format_options = ["All Formats", "Continuous Only", "Intra-Episode Stitched", "Cross-Episode Stitched"]
     format_choice = st.selectbox("Promo Format", format_options, index=0)
-
     durations = [p.get("duration_seconds", 0.0) for p in raw_promos] if raw_promos else [20.0, 60.0]
     min_d, max_d = min(durations), max(durations)
     dur_range = st.slider(
@@ -149,7 +146,6 @@ def render_filter_sidebar(raw_promos: List[Dict[str, Any]]) -> Dict[str, Any]:
         value=(float(min(min_d, 20.0)), float(max(max_d, 60.0))),
         step=0.5,
     )
-
     min_score = st.slider(
         "Minimum Weighted Score",
         min_value=0.0,
@@ -157,13 +153,9 @@ def render_filter_sidebar(raw_promos: List[Dict[str, Any]]) -> Dict[str, Any]:
         value=0.0,
         step=1.0,
     )
-
-    # Episode filter
     all_eps = {s.get("episode") for p in raw_promos for s in p.get("segments", []) if s.get("episode")}
     ep_filter = st.selectbox("Filter by Episode", ["All Episodes"] + sorted(all_eps), index=0)
-
     search_query = st.text_input("Search (Title, Quote, Dialogue, Character)", "").strip().lower()
-
     return {
         "format_choice": format_choice,
         "dur_range": dur_range,
@@ -175,175 +167,90 @@ def render_filter_sidebar(raw_promos: List[Dict[str, Any]]) -> Dict[str, Any]:
 def main() -> None:
     st.title("🎬 Kuku AI Promo Finder")
     st.caption("Automated Microdrama Promo Discovery, Multi-Segment Stitching & Semantic Evaluation")
-
     raw_promos = load_data()
     val_data = load_validation_data()
-
-    # Layout: left for main content, right for filters (only on tabs 1‑3)
     col_main, col_filters = st.columns([3, 1])
-
-    # Render filters in the right column (will be used for tabs 1‑3)
     with col_filters:
         selections = render_filter_sidebar(raw_promos)
-
     filtered = filter_promos(raw_promos, selections)
-
-    # Tabs live in the left column
     with col_main:
-        tab1, tab2, tab3 = st.tabs([
-            "🏆 Ranked Promos",
-            "📜 Screenplay Corpus",
-            "⚡ Run Pipeline",
-        ])
-
-        # ------------------- Tab 1: Ranked Promos -------------------
+        tab1, tab2, tab3 = st.tabs(["🏆 Ranked Promos", "📜 Screenplay Corpus", "⚡ Run Pipeline"])
+        # ------------------- Tab 1 -------------------
         with tab1:
-            # -------------------------------------------------
-            # ️⃣  Evaluation mode + model name (large text, no counts)
-            # -------------------------------------------------
-            eval_modes = set()               # we only need the distinct names
+            eval_modes = set()
             for p in filtered:
                 mode = p.get("evaluation_mode", "heuristic")
                 if mode == "llm":
-                    # keep the LLM name (model_name) together with the mode
-                    model = p.get("model_name", "unknown")
-                    eval_modes.add(f"{model}")
+                    eval_modes.add(p.get("model_name", "unknown"))
                 else:
                     eval_modes.add("Heuristic")
-
-            # Join the distinct entries with a slash – e.g. “LLM (gemini-3.5‑flash‑lite) / Heuristic”
-            display_text = " / ".join(sorted(eval_modes))
-
-            # Render it as a large heading (you can adjust ## → #, ###, etc. for size)
-            st.markdown(f"### **Evaluation Mode:** {display_text}")
+            st.markdown(f"### **Evaluation Mode:** {' / '.join(sorted(eval_modes))}")
             if not filtered:
-                st.info("No promos matched the selected filters. Try broadening the duration or score threshold.")
+                st.info("No promos matched the selected filters.")
             else:
-                # Render each promo
                 for idx, p in enumerate(filtered, 1):
-                    raw_score = p.get("raw_score", 0.0)
-                    dur = p.get("duration_seconds", 0.0)
                     title = p.get("title", "Untitled Promo")
                     gen = p.get("generation", "continuous")
                     is_cross = p.get("is_cross_episode", False)
-                    mode = p.get("evaluation_mode", "heuristic")
-                    model_name = p.get("model_name", "rules")
-                    scores = p.get("scores", {})
-                    hook_q = p.get("hook_quote", "")
-                    cliff_q = p.get("cliffhanger_quote", "")
-                    reasoning = p.get("reasoning", "")
-                    risk = p.get("risk", "")
-                    segments = p.get("segments", [])
                     characters = p.get("characters", [])
-                    quotes_grounded = p.get("quotes_grounded", True)
-
-                    # Badges
+                    scores = p.get("scores", {})
+                    # Badge
                     if is_cross:
                         badge_fmt = '<span class="badge-cross">Cross-Episode Stitched</span>'
                     elif gen == "stitched":
                         badge_fmt = '<span class="badge-stitched">Intra-Episode Stitched</span>'
                     else:
                         badge_fmt = '<span class="badge-continuous">Continuous Clip</span>'
-
                     exp_label = f"#{idx} {title}"
                     with st.expander(exp_label, expanded=False):
-                        # -------------------------------------------------
-                        # 2️⃣  Title + badges (rendered together, styled)
-                        # -------------------------------------------------
-                        # Build a single markdown line that contains the title,
-                        # the badge HTML, and the character list.
-                        badges = (
-                            f"{badge_fmt}<br>"
-                            f"👥 {', '.join(characters) if characters else 'Unspecified'}"
-                        )
+                        badges = f"{badge_fmt}<br>👥 {', '.join(characters) if characters else 'Unspecified'}"
                         st.markdown(badges, unsafe_allow_html=True)
-                        # Full details
                         s_cols = st.columns(5)
                         s_cols[0].caption("Hook (25%)")
-                        s_cols[0].progress(scores.get("hook", 0) / 10.0, text=f"**{scores.get('hook',0)}/10**")
+                        s_cols[0].progress(scores.get("hook",0)/10.0, text=f"**{scores.get('hook',0)}/10**")
                         s_cols[1].caption("Cliffhanger (25%)")
-                        s_cols[1].progress(scores.get("cliffhanger", 0) / 10.0, text=f"**{scores.get('cliffhanger',0)}/10**")
+                        s_cols[1].progress(scores.get("cliffhanger",0)/10.0, text=f"**{scores.get('cliffhanger',0)}/10**")
                         s_cols[2].caption("Clarity (20%)")
-                        s_cols[2].progress(scores.get("standalone_clarity", 0) / 10.0, text=f"**{scores.get('standalone_clarity',0)}/10**")
+                        s_cols[2].progress(scores.get("standalone_clarity",0)/10.0, text=f"**{scores.get('standalone_clarity',0)}/10**")
                         s_cols[3].caption("Coherence (20%)")
-                        s_cols[3].progress(scores.get("narrative_coherence", 0) / 10.0, text=f"**{scores.get('narrative_coherence',0)}/10**")
+                        s_cols[3].progress(scores.get("narrative_coherence",0)/10.0, text=f"**{scores.get('narrative_coherence',0)}/10**")
                         s_cols[4].caption("Emotion (10%)")
-                        s_cols[4].progress(scores.get("emotional_impact", 0) / 10.0, text=f"**{scores.get('emotional_impact',0)}/10**")
-
+                        s_cols[4].progress(scores.get("emotional_impact",0)/10.0, text=f"**{scores.get('emotional_impact',0)}/10**")
+                        # Quotes
                         q1, q2 = st.columns(2)
                         q1.markdown(f"""<div class='quote-box-hook'>
                             <small><b>🎯 OPENING HOOK QUOTE</b></small><br>
-                            <em>\"{hook_q}\"</em>
-                            </div>""", unsafe_allow_html=True)
+                            <em>\"{p.get('hook_quote','')}\"</em></div>""", unsafe_allow_html=True)
                         q2.markdown(f"""<div class='quote-box-cliff'>
                             <small><b>⚡ CLOSING CLIFFHANGER QUOTE</b></small><br>
-                            <em>\"{cliff_q}\"</em>
-                            </div>""", unsafe_allow_html=True)
-                        st.markdown(f"**Editorial Rationale:** {reasoning}")
-                        if risk:
-                            st.markdown(f"**⚠️ Editorial Risk/Context:** {risk}")
-                        if not quotes_grounded:
+                            <em>\"{p.get('cliffhanger_quote','')}\"</em></div>""", unsafe_allow_html=True)
+                        st.markdown(f"**Editorial Rationale:** {p.get('reasoning','')}")
+                        if p.get('risk'):
+                            st.markdown(f"**⚠️ Editorial Risk/Context:** {p.get('risk')}")
+                        if not p.get('quotes_grounded', True):
                             st.warning("Warning: Cited quotes were not verified 100% verbatim against transcript text.")
-                        st.subheader(f"📋 Segments ({len(segments)}) – {dur:.1f}s total")
-                        if segments:
-                            seg_data = []
-                            for s_idx, s in enumerate(segments, 1):
-                                seg_data.append({
+                        segs = p.get('segments', [])
+                        dur = p.get('duration_seconds',0.0)
+                        st.subheader(f"📋 Segments ({len(segs)}) – {dur:.1f}s total")
+                        if segs:
+                            rows = []
+                            for s_idx, s in enumerate(segs,1):
+                                rows.append({
                                     "Seg #": s_idx,
                                     "Episode": s.get("episode"),
-                                    "Start Time": f"{format_time(s.get('start', 0.0))} ({s.get('start', 0.0):.1f}s)",
-                                    "End Time": f"{format_time(s.get('end', 0.0))} ({s.get('end', 0.0):.1f}s)",
-                                    "Duration": f"{s.get('duration', 0.0):.1f}s",
-                                    "Lines": s.get("dialogue_count", 0),
-                                    "Characters": ", ".join(s.get("characters", [])),
+                                    "Start Time": f"{format_time(s.get('start',0.0))} ({s.get('start',0.0):.1f}s)",
+                                    "End Time": f"{format_time(s.get('end',0.0))} ({s.get('end',0.0):.1f}s)",
+                                    "Duration": f"{s.get('duration',0.0):.1f}s",
+                                    "Lines": s.get("dialogue_count",0),
+                                    "Characters": ", ".join(s.get("characters",[])),
                                 })
-                            st.table(seg_data)
+                            st.table(rows)
                         else:
                             st.info("No segments available.")
-
                         st.subheader("📖 Assembled Promo Transcript")
-                        st.text_area(
-                            label="Transcript",
-                            value=p.get("transcript", ""),
-                            height=140,
-                            disabled=True,
-                            key=f"trans_{p.get('candidate_id', idx)}_{idx}",
-                        )
-                # -------------------------------------------------
-                #  🗂️  Bottom‑of‑page download section (no nesting)
-                # -------------------------------------------------
-                # A thin separator line to visually separate the main UI from the download area
-                st.markdown("---")
-
-                # Create five columns:
-                #   col0 – left spacer
-                #   col1 – JSON download button
-                #   col2 – small spacer (just for a bit of gap)
-                #   col3 – CSV download button
-                #   col4 – right spacer
-                col0, col1, col2, col3, col4 = st.columns([1, 2, 0.5, 2, 1])
-
-                # JSON button (only shown if the file exists)
-                with col1:
-                    if RANKED_JSON.exists():
-                        st.download_button(
-                            label="📥 Download JSON",
-                            data=RANKED_JSON.read_text(encoding="utf-8"),
-                            file_name="ranked_promos.json",
-                            mime="application/json",
-                        )
-
-                # CSV button (only shown if the file exists)
-                with col3:
-                    if RANKED_CSV.exists():
-                        st.download_button(
-                            label="📊 Download CSV",
-                            data=RANKED_CSV.read_text(encoding="utf-8-sig"),
-                            file_name="ranked_promos.csv",
-                            mime="text/csv",
-                        )
-
-        # ------------------- Tab 2: Screenplay Corpus -------------------
+                        st.text_area(label="Transcript", value=p.get('transcript',''), height=140, disabled=True,
+                                     key=f"trans_{p.get('candidate_id', idx)}_{idx}")
+        # ------------------- Tab 2 -------------------
         with tab2:
             st.subheader("📜 Screenplay Corpus & Validation Report")
             if not val_data or "summary" not in val_data:
@@ -351,59 +258,46 @@ def main() -> None:
             else:
                 summ = val_data["summary"]
                 vc1, vc2, vc3, vc4 = st.columns(4)
-                vc1.metric("Total Episodes", summ.get("total_episodes", 0))
-                vc2.metric("Total Scenes", summ.get("total_scenes", 0))
-                vc3.metric("Total Events", summ.get("total_events", 0))
-                vc4.metric("Spoken Dialogue Lines", summ.get("events_by_kind", {}).get("dialogue", 0))
+                vc1.metric("Total Episodes", summ.get("total_episodes",0))
+                vc2.metric("Total Scenes", summ.get("total_scenes",0))
+                vc3.metric("Total Events", summ.get("total_events",0))
+                vc4.metric("Spoken Dialogue Lines", summ.get("events_by_kind",{}).get("dialogue",0))
                 st.markdown("---")
                 st.markdown("#### Episodes Manifest & Status")
-                ep_rows = []
-                for ep in val_data.get("episodes", []):
-                    ep_rows.append({
+                rows = []
+                for ep in val_data.get("episodes",[]):
+                    rows.append({
                         "Episode ID": ep.get("episode_id"),
                         "Number": ep.get("episode_number"),
                         "Duration": f"{ep.get('duration_seconds',0.0):.1f}s ({format_time(ep.get('duration_seconds',0.0))})",
-                        "Scenes": ep.get("scenes_count", 0),
-                        "Dialogue Lines": ep.get("dialogue_count", 0),
-                        "Actions": ep.get("action_count", 0),
-                        "Status": ep.get("status", "VALID"),
-                        "Anomalies": ep.get("anomalies_count", 0),
+                        "Scenes": ep.get("scenes_count",0),
+                        "Dialogue Lines": ep.get("dialogue_count",0),
+                        "Actions": ep.get("action_count",0),
+                        "Status": ep.get("status","VALID"),
+                        "Anomalies": ep.get("anomalies_count",0),
                     })
-                st.dataframe(ep_rows, use_container_width=True)
-
-        # ------------------- Tab 3: Run Pipeline -------------------
+                st.dataframe(rows, use_container_width=True)
+        # ------------------- Tab 3 -------------------
         with tab3:
             st.subheader("⚡ Execute Promo Finder Pipeline")
             st.caption("Re‑run candidate generation, heuristic screening, and LLM evaluation with custom parameters.")
-            # ---- Upload screenplays ----
-
-            # ---- Upload & manage screenplays ----
-
             uploaded_files = st.file_uploader(
                 "Upload screenplay .txt files (will be saved to `data/episodes/`)",
                 type=["txt"],
                 accept_multiple_files=True,
                 key="screenplay_uploader",
             )
-
             if uploaded_files:
-                # Initialise session state list
                 if "uploaded_files" not in st.session_state:
                     st.session_state.uploaded_files = []
                 for uf in uploaded_files:
-                    # Save file data in session state (avoid duplicates)
                     if not any(f["name"] == uf.name for f in st.session_state.uploaded_files):
                         st.session_state.uploaded_files.append({"name": uf.name, "data": uf.getvalue()})
                 st.success(f"Added {len(uploaded_files)} file(s).")
-            # Inline, scrollable file list with delete buttons (max 3 visible rows)
-            
-
-            # Write all uploaded files to the data folder before running the pipeline
             for f in st.session_state.get("uploaded_files", []):
                 save_path = Path("data/episodes") / f["name"]
                 with open(save_path, "wb") as out_f:
                     out_f.write(f["data"])
-
             with st.form("pipeline_run_form"):
                 r_c1, r_c2 = st.columns(2)
                 with r_c1:
@@ -412,10 +306,15 @@ def main() -> None:
                     max_sec = st.number_input("Maximum Duration (s)", min_value=20.0, max_value=90.0, value=60.0, step=1.0)
                 with r_c2:
                     model_choice = st.selectbox(
-                        "LLM Model for Semantic Evaluation",
-                        ["gemini-3.5-flash-lite", "gemini-3.8-flash", "heuristic-only"],
+                        "Model for Evaluation",
+                        ["heuristic-only", "gemini-3.5-flash-lite"],
                         index=0,
+                        format_func=lambda x: "Heuristic (no API)" if x == "heuristic-only" else "LLM (Gemini 3.5 Flash‑Lite)",
                     )
+                    if model_choice != "heuristic-only":
+                        api_key_input = st.text_input("LLM API Key (optional)", type="password", key="llm_api_key")
+                    else:
+                        api_key_input = None
                     cont_only = st.checkbox("Continuous Clips Only (Skip Stitching)", value=False)
                     dry_run_opt = st.checkbox(
                         "Dry Run Only (Heuristic without API calls)",
@@ -436,8 +335,11 @@ def main() -> None:
                     cmd.append("--continuous-only")
                 if dry_run_opt or model_choice == "heuristic-only":
                     cmd.append("--dry-run")
-                elif model_choice:
-                    cmd.extend(["--model", model_choice])
+                else:
+                    selected_model = model_choice
+                    cmd.extend(["--model", selected_model])
+                if api_key_input:
+                    os.environ["PROMO_API_KEY"] = api_key_input
                 with st.spinner("Processing screenplays, screening candidates, and evaluating with API..."):
                     t_start = time.time()
                     proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
@@ -452,6 +354,25 @@ def main() -> None:
                 else:
                     st.error("Pipeline failed with error:")
                     st.code(proc.stderr or proc.stdout)
+    # Bottom download section
+    st.markdown("---")
+    col0, col1, col2, col3, col4 = st.columns([1, 2, 0.5, 2, 1])
+    with col1:
+        if RANKED_JSON.exists():
+            st.download_button(
+                label="📥 Download JSON",
+                data=RANKED_JSON.read_text(encoding="utf-8"),
+                file_name="ranked_promos.json",
+                mime="application/json",
+            )
+    with col3:
+        if RANKED_CSV.exists():
+            st.download_button(
+                label="📊 Download CSV",
+                data=RANKED_CSV.read_text(encoding="utf-8-sig"),
+                file_name="ranked_promos.csv",
+                mime="text/csv",
+            )
 
 if __name__ == "__main__":
     main()

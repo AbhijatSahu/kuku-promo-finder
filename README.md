@@ -93,6 +93,9 @@ python main.py [OPTIONS]
 ---
 
 ## Streamlit Dashboard (`app.py`)
+
+> **Note**: The model selector now offers only two choices – **Heuristic (no API)** and **LLM (Gemini 3.5 Flash‑Lite)**. The API‑key field appears only when the LLM option is selected.
+
 The UI provides:
 - **Ranked promo explorer** with filters (format, duration, score, episode). 
 - **Score progress bars** for Hook (25 %), Cliffhanger (25 %), Clarity (20 %), Coherence (20 %), Emotional Impact (10 %).
