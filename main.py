@@ -11,7 +11,7 @@ from pathlib import Path
 from dotenv import load_dotenv, find_dotenv
 
 # Automatically load environment variables from .env
-load_dotenv(find_dotenv(), override=True)
+load_dotenv(find_dotenv(), override=False)
 
 from promo_finder.parser import parse_episode_full, export_parsed_episodes, generate_validation_report, Episode
 from promo_finder.candidates import continuous_candidates, stitched_candidates, Candidate
@@ -32,6 +32,7 @@ def main() -> None:
     ap.add_argument("--parse-only", action="store_true", help="Parse and validate screenplays only, exporting JSON reports without candidate generation")
     ap.add_argument("--llm-max-candidates", type=int, default=0, help="Max top unique candidates to evaluate with LLM (default: same as --top)")
     ap.add_argument("--model", default=None, help="Override LLM model name (default: PROMO_MODEL or gpt-4o-mini)")
+    ap.add_argument("--require-llm", action="store_true", help="Fail instead of silently falling back to heuristics when the LLM is unavailable")
     args = ap.parse_args()
 
     files = sorted(Path(args.input).glob("*.txt"))
@@ -141,6 +142,8 @@ def main() -> None:
     # 3. Two-Stage Evaluation
     has_api_key = bool(get_api_key())
     run_llm = has_api_key and not args.dry_run
+    if args.require_llm and not args.dry_run and not has_api_key:
+        raise SystemExit("ERROR: --require-llm was set but no API key is configured (PROMO_API_KEY).")
 
     evaluations: dict[str, dict] = {}
 
@@ -177,6 +180,12 @@ def main() -> None:
             evaluations[c.candidate_id] = llm_eval(c, model=effective_model)
             if i % 2 == 0 or i == len(llm_targets):
                 print(f"API evaluated {i}/{len(llm_targets)} promos...")
+
+        llm_ok = sum(1 for c in llm_targets if evaluations[c.candidate_id].get("evaluation_mode") == "llm")
+        print(f"LLM evaluations succeeded: {llm_ok}/{len(llm_targets)} (others used heuristic fallback).")
+        if args.require_llm and llm_targets and llm_ok == 0:
+            reasons = {evaluations[c.candidate_id].get("reasoning", "") for c in llm_targets}
+            raise SystemExit("ERROR: every LLM evaluation failed; refusing to report heuristic scores as LLM results.\n" + "\n".join(sorted(reasons)))
 
         # Step 3: Re-rank only the API-evaluated candidates based on final LLM scores
         print(f"Ranking final API-evaluated candidates (target top {args.top})...")

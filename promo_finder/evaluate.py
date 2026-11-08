@@ -9,8 +9,8 @@ from typing import Any
 from dotenv import load_dotenv, find_dotenv
 from pydantic import BaseModel, Field, field_validator
 
-# Automatically load environment variables from .env
-load_dotenv(find_dotenv(), override=True)
+# Load .env without overriding variables already set (e.g. a key entered in the UI).
+load_dotenv(find_dotenv(), override=False)
 
 # Default rubric weights mandated by the assignment
 RUBRIC = {
@@ -235,6 +235,45 @@ MODEL_FALLBACKS: dict[str, str] = {
     "gemini-2.5-pro": "gemini-3.1-pro-preview",
 }
 
+def resolve_model_name(model: str | None) -> str:
+    """Return the model ID that will actually be called (after deprecated-ID remapping)."""
+    raw_model = (model or os.getenv('PROMO_MODEL') or 'gemini-3.5-flash-lite').strip()
+    return MODEL_FALLBACKS.get(raw_model, raw_model)
+
+
+def check_llm_connection(
+    model: str | None = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    timeout: float = 20.0,
+) -> tuple[bool, str]:
+    """Make one tiny request to verify the model/API key work before a full run.
+
+    Uses the same OpenAI-compatible client, base URL normalisation and model
+    remapping as ``llm_eval`` so a passing check means evaluation will work.
+    Returns ``(ok, message)``; the message never contains the API key.
+    """
+    key = (api_key or "").strip() or get_api_key()
+    if not key:
+        return False, "No API key provided. Enter one or set PROMO_API_KEY."
+    model_name = resolve_model_name(model)
+    url = normalize_base_url(base_url or os.getenv('PROMO_BASE_URL'))
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=key, base_url=url, timeout=timeout, max_retries=0)
+        resp = client.chat.completions.create(
+            model=model_name,
+            messages=[{'role': 'user', 'content': 'Reply with the word OK.'}],
+            max_tokens=5,
+        )
+        if not resp.choices:
+            return False, f"Model '{model_name}' returned an empty response."
+        return True, f"Model '{model_name}' is reachable."
+    except Exception as exc:  # noqa: BLE001 - surface any SDK/network error to the UI
+        detail = str(exc).replace(key, "***")
+        return False, f"Model '{model_name}' check failed ({type(exc).__name__}): {detail[:400]}"
+
+
 def llm_eval(
     candidate: Any,
     model: str | None = None,
@@ -246,8 +285,7 @@ def llm_eval(
     if not key:
         return deterministic_eval(candidate, rubric)
 
-    raw_model = model or os.getenv('PROMO_MODEL', 'gemini-3.5-flash-lite')
-    model_name = MODEL_FALLBACKS.get(raw_model, raw_model)
+    model_name = resolve_model_name(model)
     base_url = normalize_base_url(os.getenv('PROMO_BASE_URL'))
 
     last_exc = None
