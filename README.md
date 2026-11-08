@@ -1,5 +1,7 @@
 # Kuku Promo Finder
 
+[Live demo](https://kuku-promo-finder-abhijat.streamlit.app/)
+
 **Generate, evaluate, and rank short promotional clips (20–60 seconds) from timestamped micro‑drama screenplays.**
 
 ---
